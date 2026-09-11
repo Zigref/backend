@@ -1,16 +1,80 @@
 #include "./deps/crow_all.h"
+#include <sqlite3.h>
+
+std::vector<std::string> global_list;
+void prepare_statements()
+{
+    global_list.clear();
+    global_list.reserve(10000);
+
+    sqlite3 *db = nullptr;
+    if (sqlite3_open_v2("./zigistry.db", &db, SQLITE_OPEN_READONLY, nullptr) != SQLITE_OK)
+    {
+        if (db) {
+            sqlite3_close(db);
+        }
+        exit(1);
+    }
+
+    const char *sql = "SELECT id FROM repos";
+
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        sqlite3_close(db);
+        exit(1);
+    }
+
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        const unsigned char *text = sqlite3_column_text(stmt, 0);
+        if (text)
+        {
+            global_list.push_back((const char *)text);
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+}
 
 int main()
 {
+    prepare_statements();
+    for(auto thing:global_list) {
+        std::cout << thing << std::endl;
+    }
+
+        std::cout << "completed" << std::endl;
+
+
     crow::SimpleApp app;
 
-    CROW_ROUTE(app, "/")([](){
-        return "Please visit <a href='https://zigref.org/'>https://zigref.org/</a>.";
-    });
+    CROW_ROUTE(app, "/")([]()
+                         { return "Please visit <a href='https://zigref.org/'>https://zigref.org/</a>."; });
 
-    CROW_ROUTE(app, "/status")([](){
-        return "Everything operational";
-    });
+    CROW_ROUTE(app, "/status")([]()
+                               { return "Everything operational"; });
+
+    CROW_ROUTE(app, "/status")([](const crow::request &req)
+                               {
+                                   const char *q__ = req.url_params.get("q");
+
+                                   if (!q__)
+                                   {
+                                       return "404";
+                                   }
+
+                                   const std::string q = q__;
+
+                                   if (q.length() > 30)
+                                   {
+                                       return "length_too_long";
+                                   }
+
+                                   crow::json::wvalue::list results(20);
+                               });
 
     app.port(8080).multithreaded().run();
 

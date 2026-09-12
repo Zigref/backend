@@ -10,7 +10,8 @@ void prepare_statements()
     sqlite3 *db = nullptr;
     if (sqlite3_open_v2("./zigistry.db", &db, SQLITE_OPEN_READONLY, nullptr) != SQLITE_OK)
     {
-        if (db) {
+        if (db)
+        {
             sqlite3_close(db);
         }
         exit(1);
@@ -42,12 +43,12 @@ void prepare_statements()
 int main()
 {
     prepare_statements();
-    for(auto thing:global_list) {
+    for (auto thing : global_list)
+    {
         std::cout << thing << std::endl;
     }
 
-        std::cout << "completed" << std::endl;
-
+    std::cout << "completed" << std::endl;
 
     crow::SimpleApp app;
 
@@ -57,24 +58,43 @@ int main()
     CROW_ROUTE(app, "/status")([]()
                                { return "Everything operational"; });
 
-    CROW_ROUTE(app, "/status")([](const crow::request &req)
+    CROW_ROUTE(app, "/search")([](const crow::request &req)
+                           {
+                               const char *q__ = req.url_params.get("q");
+
+                               if (!q__)
                                {
-                                   const char *q__ = req.url_params.get("q");
+                                   return crow::response(404);
+                               }
 
-                                   if (!q__)
+                               const std::string q = q__;
+                               std::transform(q.begin(), q.end(), q.begin(), ::tolower);
+
+                               if (q.length() > 30)
+                               {
+                                   return crow::response("length_too_long");
+                               }
+
+                               crow::json::wvalue::list results(20);
+
+                               for (const std::string &repo : global_list)
+                               {
+                                   if (repo.find(q) != std::string::npos)
                                    {
-                                       return "404";
+                                       results.push_back(repo);
+
+                                       if (results.size() == 20)
+                                       {
+                                           break;
+                                       }
                                    }
+                               }
 
-                                   const std::string q = q__;
+                               crow::json::wvalue response;
+                               response["results"] = std::move(results);
 
-                                   if (q.length() > 30)
-                                   {
-                                       return "length_too_long";
-                                   }
-
-                                   crow::json::wvalue::list results(20);
-                               });
+                               return crow::response(response);
+                           });
 
     app.port(8080).multithreaded().run();
 

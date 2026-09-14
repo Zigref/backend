@@ -17,7 +17,7 @@ void prepare_statements()
         exit(1);
     }
 
-    const char *sql = "SELECT id FROM repos";
+    const char *sql = "SELECT repo_id FROM packages";
 
     sqlite3_stmt *stmt = nullptr;
 
@@ -43,9 +43,12 @@ void prepare_statements()
 int main()
 {
     prepare_statements();
+    int i = 0;
     for (auto thing : global_list)
     {
         std::cout << thing << std::endl;
+        std::cout << i << std::endl;
+        i++;
     }
 
     std::cout << "completed" << std::endl;
@@ -59,42 +62,41 @@ int main()
                                { return "Everything operational"; });
 
     CROW_ROUTE(app, "/search")([](const crow::request &req)
-                           {
-                               const char *q__ = req.url_params.get("q");
-
-                               if (!q__)
                                {
-                                   return crow::response(404);
-                               }
+        const char *q__ = req.url_params.get("q");
 
-                               const std::string q = q__;
-                               std::transform(q.begin(), q.end(), q.begin(), ::tolower);
+        if (!q__)
+        {
+            return crow::response(404);
+        }
 
-                               if (q.length() > 30)
-                               {
-                                   return crow::response("length_too_long");
-                               }
+        std::string q = q__;
+        std::transform(q.begin(), q.end(), q.begin(), ::tolower);
 
-                               crow::json::wvalue::list results(20);
+        if (q.length() > 30)
+        {
+            return crow::response("length_too_long");
+        }
 
-                               for (const std::string &repo : global_list)
-                               {
-                                   if (repo.find(q) != std::string::npos)
-                                   {
-                                       results.push_back(repo);
+        crow::json::wvalue::list results;
 
-                                       if (results.size() == 20)
-                                       {
-                                           break;
-                                       }
-                                   }
-                               }
+        for (const std::string &repo : global_list)
+        {
+            if (repo.find(q) != std::string::npos)
+            {
+                results.push_back(repo);
 
-                               crow::json::wvalue response;
-                               response["results"] = std::move(results);
+                if (results.size() == 20)
+                {
+                    break;
+                }
+            }
+        }
 
-                               return crow::response(response);
-                           });
+        crow::json::wvalue response;
+        response["results"] = std::move(results);
+
+        return crow::response(response); });
 
     app.port(8080).multithreaded().run();
 

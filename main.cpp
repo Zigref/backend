@@ -53,7 +53,15 @@ int main()
 
     std::cout << "completed" << std::endl;
 
-    crow::SimpleApp app;
+    crow::Crow<crow::CORSHandler> app;
+
+    app.get_middleware<crow::CORSHandler>().global()
+        .origin("*")
+        .methods(crow::HTTPMethod::Get)
+        .methods(crow::HTTPMethod::Post)
+        .methods(crow::HTTPMethod::Put)
+        .methods(crow::HTTPMethod::Delete)
+        .methods(crow::HTTPMethod::Patch);
 
     CROW_ROUTE(app, "/")([]()
                          { return "Please visit <a href='https://zigref.org/'>https://zigref.org/</a>."; });

@@ -1,12 +1,14 @@
 #include "./deps/crow_all.h"
 #include <sqlite3.h>
+#include <thread>
+#include <shared_mutex>
+#include <chrono>
 
 std::vector<std::string> global_list;
+std::shared_mutex list_mutex;
+
 void prepare_statements()
 {
-    global_list.clear();
-    global_list.reserve(10000);
-
     sqlite3 *db = nullptr;
     if (sqlite3_open_v2("./zigistry.db", &db, SQLITE_OPEN_READONLY, nullptr) != SQLITE_OK)
     {
@@ -14,44 +16,51 @@ void prepare_statements()
         {
             sqlite3_close(db);
         }
-        exit(1);
+        return;
     }
 
     const char *sql = "SELECT repo_id FROM packages";
-
     sqlite3_stmt *stmt = nullptr;
 
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK)
     {
         sqlite3_close(db);
-        exit(1);
+        return;
     }
+
+    std::vector<std::string> new_list;
+    new_list.reserve(10000);
 
     while (sqlite3_step(stmt) == SQLITE_ROW)
     {
         const unsigned char *text = sqlite3_column_text(stmt, 0);
         if (text)
         {
-            global_list.push_back((const char *)text);
+            new_list.push_back((const char *)text);
         }
     }
 
     sqlite3_finalize(stmt);
     sqlite3_close(db);
+
+    std::unique_lock lock(list_mutex);
+    global_list = std::move(new_list);
 }
 
 int main()
 {
     prepare_statements();
-    int i = 0;
-    for (auto thing : global_list)
-    {
-        std::cout << thing << std::endl;
-        std::cout << i << std::endl;
-        i++;
-    }
 
-    std::cout << "completed" << std::endl;
+    std::thread([]() {
+        while (true)
+        {
+            std::this_thread::sleep_for(std::chrono::hours(1));
+            if (system("make download_database") == 0)
+            {
+                prepare_statements();
+            }
+        }
+    }).detach();
 
     crow::Crow<crow::CORSHandler> app;
 
@@ -88,6 +97,7 @@ int main()
 
         crow::json::wvalue::list results;
 
+        std::shared_lock lock(list_mutex);
         for (const std::string &repo : global_list)
         {
             if (repo.find(q) != std::string::npos)

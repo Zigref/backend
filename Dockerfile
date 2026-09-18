@@ -12,6 +12,8 @@ WORKDIR /Zigref/Zigref_backend
 
 RUN make
 
+RUN make download_database
+
 EXPOSE 8080
 
 CMD ["./a.out"]

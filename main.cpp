@@ -3,6 +3,9 @@
 #include <thread>
 #include <shared_mutex>
 #include <chrono>
+#include <iostream>
+#include <filesystem>
+#include <cstdlib>
 
 std::vector<std::string> global_list;
 std::shared_mutex list_mutex;
@@ -47,15 +50,27 @@ void prepare_statements()
     global_list = std::move(new_list);
 }
 
+bool download_database()
+{
+    std::cout << "Downloading database..." << std::endl;
+    int ret = system("wget -q -O ./zigistry.db.tmp \"https://huggingface.co/buckets/Zigistry/Zigistry/resolve/zigistry.db\" && mv ./zigistry.db.tmp ./zigistry.db");
+    return ret == 0;
+}
+
 int main()
 {
+    if (!std::filesystem::exists("./zigistry.db"))
+    {
+        download_database();
+    }
+
     prepare_statements();
 
     std::thread([]() {
         while (true)
         {
             std::this_thread::sleep_for(std::chrono::hours(1));
-            if (system("make download_database") == 0)
+            if (download_database())
             {
                 prepare_statements();
             }

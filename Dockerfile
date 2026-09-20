@@ -1,19 +1,20 @@
-FROM fedora:latest
+FROM --platform=amd64 amd64/alpine:latest AS builder
 
-RUN dnf -y update
+RUN apk add --no-cache make sqlite-dev g++ asio-dev
 
-RUN dnf -y install git curl make clang pkg-config asio-devel sqlite sqlite-devel
-
-RUN dnf clean all
-
-RUN git clone --depth=1 https://github.com/Zigref/Zigref.git
-
-WORKDIR /Zigref/Zigref_backend
+WORKDIR /app
+COPY . .
 
 RUN make
+RUN strip build/server
 
-RUN make download_database
+FROM --platform=amd64 amd64/alpine:latest
+
+RUN apk add --no-cache wget ca-certificates sqlite-libs libstdc++
+
+WORKDIR /app
+COPY --from=builder /app/build/server ./build/server
 
 EXPOSE 8080
 
-CMD ["./a.out"]
+CMD ["./build/server"]
